@@ -53,16 +53,34 @@ const fixed = (v) => () => v;
 }
 
 {
-  // A Nova whose blast reaches a Prism fires the Prism, which clears every tile of its colour.
+  // A Nova whose blast reaches a Prism fires the Prism, which takes the colour with most tiles left.
   const rows = CHECKER.slice();
   rows[3] = '0*P' + rows[3].slice(3);
+  rows[7] = '2222222';
   const b = grid(rows);
   const hit = E.computeHit(b, 3 * E.W + 1, R1);
-  const ones = b.filter((c) => c.t === 'n' && c.c === 1).length;
   assert.ok(hit.special);
   assert.equal(hit.specials, 2);
-  assert.ok(hit.n >= ones + 2, 'chain reaction includes the Prism colour sweep');
+  const swept = [0, 1, 2].filter((c) => b.every((d, m) => d.t !== 'n' || d.c !== c || hit.set.has(m)));
+  assert.equal(swept.length, 1, 'a chained Prism wipes out exactly one colour');
+  assert.notEqual(swept[0], 2, 'and picks a plentiful one, not the scarce one');
   assert.equal(E.preview(b, 3 * E.W + 1, 0, R1).pts, Math.round(hit.n * 40 * (R1.baseMult + R1.streakStep)), 'blasts pay per tile');
+}
+
+{
+  // A tapped Prism clears the colour the player picks.
+  const rows = CHECKER.slice();
+  rows[0] = 'P' + rows[0].slice(1);
+  rows[7] = '2222222';
+  const b = grid(rows);
+  for (const pick of [0, 1, 2]) {
+    const r = E.preview(b, 0, 0, R1, pick);
+    const total = b.filter((d) => d.t === 'n' && d.c === pick).length;
+    assert.ok(r.valid);
+    assert.equal(r.n, total + 1, `Prism with pick ${pick} clears all of it`);
+  }
+  const spawned = E.tap(grid(['00000000000' + CHECKER.join('').slice(11)].join('').match(/.{7}/g)), 0, 0, R1, () => 0.99);
+  assert.ok(spawned.board.some((d) => d.t === 'prism' && d.c === -1), 'a forged Prism has no colour of its own');
 }
 
 {

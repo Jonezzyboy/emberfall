@@ -146,7 +146,16 @@
     return out;
   }
 
-  function computeHit(b, i, r) {
+  function richestColour(b, taken) {
+    const counts = {};
+    b.forEach((o, m) => { if (o.t === 'n' && !taken.has(m)) counts[o.c] = (counts[o.c] || 0) + 1; });
+    let best = -1;
+    Object.keys(counts).forEach((c) => { if (best < 0 || counts[c] > counts[best]) best = Number(c); });
+    return best;
+  }
+
+  // `pick` is the colour chosen for a tapped Prism.
+  function computeHit(b, i, r, pick) {
     const set = new Set();
     const c = b[i];
     let special = false;
@@ -178,7 +187,9 @@
             if (nx >= 0 && nx < W && ny >= 0 && ny < H) q.push(ny * W + nx);
           }
         } else if (e.t === 'prism') {
-          b.forEach((o, m) => { if (o.t === 'n' && o.c === e.c) q.push(m); });
+          // A Prism set off by a chain has nobody to ask, so it takes the colour that clears most.
+          const colour = k === i && pick != null ? pick : richestColour(b, set);
+          b.forEach((o, m) => { if (o.t === 'n' && o.c === colour) q.push(m); });
         }
       }
     }
@@ -197,8 +208,8 @@
     return { set, special, n, ash, sparks, specials };
   }
 
-  function preview(b, i, streak, r) {
-    const hit = computeHit(b, i, r);
+  function preview(b, i, streak, r, pick) {
+    const hit = computeHit(b, i, r, pick);
     const valid = hit.special || hit.n >= 2;
     let nextStreak;
     if (hit.n >= 4) nextStreak = Math.min(STREAK_CAP, streak + 1);
@@ -216,14 +227,14 @@
   }
 
   // Returns null when the tap clears nothing.
-  function tap(b, i, streak, r, rand) {
-    const p = preview(b, i, streak, r);
+  function tap(b, i, streak, r, rand, pick) {
+    const p = preview(b, i, streak, r, pick);
     if (!p.valid) return null;
     const next = b.slice();
     p.hit.set.forEach((j) => { next[j] = null; });
     const fresh = new Set();
     if (p.spawn) {
-      next[i] = { c: b[i].c, t: p.spawn, k: ++uid };
+      next[i] = { c: p.spawn === 'prism' ? -1 : b[i].c, t: p.spawn, k: ++uid };
       fresh.add(next[i].k);
     }
     for (let x = 0; x < W; x++) {

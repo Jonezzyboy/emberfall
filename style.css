@@ -168,6 +168,8 @@ h2 { margin: 0 0 6px; font-size: 40px; font-weight: 800; letter-spacing: -0.02em
 .board.focus .tile { opacity: .38; }
 .board.focus .tile.hl { opacity: 1; }
 .tile.hl { box-shadow: 0 0 0 2px var(--ink), inset 0 -3px 0 rgba(0, 0, 0, .2); }
+@keyframes armed { 50% { box-shadow: 0 0 0 4px var(--amber), 0 0 18px 4px rgba(242, 179, 61, .55); } }
+.tile.armed { opacity: 1 !important; box-shadow: 0 0 0 3px var(--amber); animation: armed 1s ease-in-out infinite; }
 @media (hover: hover) { .tile:hover { transform: translateY(-2px); } }
 @keyframes drop { from { transform: translateY(-26px); opacity: 0; } to { transform: none; opacity: 1; } }
 .tile.drop { animation: drop .34s cubic-bezier(.2, .9, .3, 1.25) both; }
@@ -202,7 +204,7 @@ h2 { margin: 0 0 6px; font-size: 40px; font-weight: 800; letter-spacing: -0.02em
 .chip { flex: none; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 .chip svg { width: 18px; height: 18px; }
 .chip.nova { background: #fff1d0; fill: var(--coral); }
-.chip.prism { background: #2a2240; fill: var(--violet); }
+.chip.prism { background: #2a2240; fill: var(--ink); }
 .chip.ash { background: #4a4458 repeating-linear-gradient(135deg, rgba(255, 255, 255, .07) 0 3px, transparent 3px 9px); }
 .spark-chip { position: relative; background: var(--teal); }
 

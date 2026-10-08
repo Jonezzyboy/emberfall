@@ -12,7 +12,9 @@ Clear the board. Chase the chain. Come back tomorrow. Part of [The Daily Shelf](
 - **Streaks:** each clear of 4+ adds +0.25× to the multiplier, up to 8 steps;
   a smaller clear resets it, and so does a new level.
 - **Specials:** 6+ tiles forge a **Nova** (clears 3×3), 11+ forge a **Prism**
-  (clears every tile of its colour). Specials caught in a blast fire too.
+  (tap it, then tap any colour to clear every tile of it). Specials caught in
+  a blast fire too; a Prism set off that way takes the colour with most tiles
+  left.
   Blasts pay 40 a tile.
 - **Ash** arrives at level 4: dead tiles that crumble when a neighbour clears.
 - **Sparks** are marked tiles worth +1 move each, up to 5 a level.

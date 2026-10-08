@@ -217,7 +217,11 @@
 
   function renderBoard(fresh) {
     if (!run) return;
-    const p = hover >= 0 ? E.preview(run.board, hover, run.streak, run.rules) : null;
+    const armed = run.armed >= 0;
+    const pick = armed && hover >= 0 && run.board[hover].t === 'n' ? run.board[hover].c : null;
+    let p = null;
+    if (armed) { if (pick != null) p = E.preview(run.board, run.armed, run.streak, run.rules, pick); }
+    else if (hover >= 0) p = E.preview(run.board, hover, run.streak, run.rules);
     const hl = p && p.valid ? p.hit.set : null;
     boardEl.classList.toggle('focus', !!hl);
 
@@ -226,7 +230,7 @@
       const col = COLORS[c.c];
       let bg, d, fill = 'none', stroke = 'none', label;
       if (c.t === 'nova') { bg = '#fff1d0'; d = STAR; fill = '#e4572e'; label = 'Nova'; }
-      else if (c.t === 'prism') { bg = '#2a2240'; d = RING; fill = col.hex; label = `${col.name} prism`; }
+      else if (c.t === 'prism') { bg = '#2a2240'; d = RING; fill = '#f3eee4'; label = i === run.armed ? 'Prism, armed: pick a colour' : 'Prism'; }
       else if (c.t === 'ash') { bg = '#4a4458'; d = CRACK; stroke = 'rgba(20,16,30,.6)'; label = 'Ash'; }
       else { bg = col.hex; d = col.d; fill = 'rgba(20,16,30,.5)'; label = col.name + (c.s ? ' spark' : ''); }
       t.style.backgroundColor = bg;
@@ -240,6 +244,7 @@
       t.classList.toggle('ash', c.t === 'ash');
       t.classList.toggle('spark', !!c.s);
       t.classList.toggle('hl', !!(hl && hl.has(i)));
+      t.classList.toggle('armed', i === run.armed);
       if (fresh && fresh.has(c.k)) {
         t.classList.remove('drop');
         void t.offsetWidth;
@@ -251,6 +256,14 @@
     pv.className = 'preview';
     if (run.cleared) {
       pv.textContent = '';
+    } else if (armed && p) {
+      pv.textContent = `Prism clears every ${COLORS[pick].name} tile · ${p.n} tiles → +${fmt(p.pts)}`;
+      pv.classList.add('on');
+    } else if (armed) {
+      pv.textContent = 'Prism armed — tap a colour to clear it, or the Prism to cancel';
+      pv.classList.add('on');
+    } else if (hover >= 0 && run.board[hover].t === 'prism') {
+      pv.textContent = 'Prism — tap it, then pick any colour to clear';
     } else if (p && p.valid) {
       const bits = [`${p.hit.special ? 'Detonates ' : ''}${p.n} tiles → +${fmt(p.pts)}`];
       if (p.hit.ash) bits.push(`${p.hit.ash} ash`);
@@ -328,6 +341,7 @@
       levelScore: 0,
       streak: 0,
       sparks: 0,
+      armed: -1,
       cleared: false,
     });
     run.peakMult = Math.max(run.peakMult, r.baseMult);
@@ -344,7 +358,22 @@
 
   function tap(i) {
     if (!run || run.cleared || run.ending) return;
-    const r = E.tap(run.board, i, run.streak, run.rules, rand);
+    let r;
+    let pick = null;
+    if (run.armed >= 0) {
+      if (i === run.armed) { run.armed = -1; renderBoard(null); return; }
+      if (run.board[i].t !== 'n') { toast('Pick a coloured tile'); return; }
+      pick = run.board[i].c;
+      const at = run.armed;
+      run.armed = -1;
+      r = E.tap(run.board, at, run.streak, run.rules, rand, pick);
+    } else if (run.board[i].t === 'prism') {
+      run.armed = i;
+      renderBoard(null);
+      return;
+    } else {
+      r = E.tap(run.board, i, run.streak, run.rules, rand);
+    }
     if (!r) {
       toast(run.board[i].t === 'ash' ? 'Ash only crumbles when a neighbour clears' : 'Needs a neighbour of the same colour');
       return;
@@ -371,6 +400,7 @@
 
     let sub = '';
     if (r.spawn) sub = r.spawn === 'prism' ? 'Prism forged' : 'Nova forged';
+    else if (pick != null) sub = `${COLORS[pick].name} wiped out`;
     else if (r.special) sub = `${r.n} tiles detonated`;
     else if (r.mult > 1) sub = '×' + round2(r.mult);
     if (gained) sub += (sub ? ' · ' : '') + `+${gained} move${gained > 1 ? 's' : ''}`;
