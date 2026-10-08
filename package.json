@@ -1,0 +1,13 @@
+{
+  "name": "emberfall",
+  "version": "1.0.0",
+  "description": "Clear the board, chase the chain. A daily tile-clearing game with endless runs and a Forge of upgrades.",
+  "private": true,
+  "scripts": {
+    "start": "serve -l 8000 .",
+    "test": "node test/engine.test.js"
+  },
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}
