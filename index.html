@@ -23,10 +23,13 @@
     <div class="swatches" aria-hidden="true">
       <span style="background: var(--amber)"></span><span style="background: var(--coral)"></span><span style="background: var(--teal)"></span><span style="background: var(--violet)"></span><span style="background: var(--bone)"></span>
     </div>
-    <button type="button" class="ghost pill" data-go="shop" aria-label="Open the Forge">
-      <svg class="flame" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-7c1 2 1 3 3 4c0-4-1-6 0-9Z"/></svg>
-      <span class="num" data-embers>0</span>
-    </button>
+    <div class="pills">
+      <button type="button" class="ghost pill" data-go="feats">Feats <span class="num muted" id="featCount"></span></button>
+      <button type="button" class="ghost pill" data-go="shop" aria-label="Open the Forge">
+        <svg class="flame" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-7c1 2 1 3 3 4c0-4-1-6 0-9Z"/></svg>
+        <span class="num" data-embers>0</span>
+      </button>
+    </div>
   </div>
 
   <header class="hero">
@@ -39,7 +42,7 @@
       <span class="eyebrow amber">Daily board</span>
       <span class="num muted" id="dailyLabel"></span>
     </div>
-    <p class="muted">Same board for everyone. Upgrades off. Pure skill.</p>
+    <p class="muted">Same board and boon offers for everyone. Forge upgrades off. First run each day pays double Embers.</p>
     <div class="card-row">
       <span id="dailyStatus"></span>
       <span class="amber strong" id="streakText"></span>
@@ -68,7 +71,7 @@
   <div class="howto">
     <div><b>Tap 2+</b>matching tiles to clear them</div>
     <div><b>Bigger = better</b>score grows with the square</div>
-    <div><b>6+ forges</b>a Nova; 11+ a Prism</div>
+    <div><b>Clear a level,</b>pick a boon for the run</div>
   </div>
 </section>
 
@@ -98,8 +101,9 @@
   </div>
 
   <div class="stats">
-    <div class="stat"><span class="muted">Multiplier</span><span class="num amber" id="mult"></span></div>
+    <div class="stat"><span class="muted">Mult</span><span class="num amber" id="mult"></span></div>
     <div class="stat"><span class="muted">Streak</span><span class="num teal" id="streak"></span></div>
+    <div class="stat"><span class="muted">Sparks</span><span class="num" id="sparks"></span></div>
   </div>
 
   <div class="board-wrap">
@@ -107,10 +111,13 @@
     <div class="pop" id="pop" aria-hidden="true"><div class="num pop-main" id="popText"></div><div class="num pop-sub" id="popSub"></div></div>
     <div class="overlay" id="clearOverlay" hidden>
       <div class="eyebrow teal" id="clearTitle"></div>
-      <div class="num" id="clearScore" style="font-size: 36px"></div>
-      <div class="muted" id="bonusText"></div>
-      <div class="muted small">Next target <span class="num" id="nextTarget" style="color: var(--ink)"></span></div>
-      <button type="button" class="btn" id="nextLevel">Next level</button>
+      <div class="muted small" id="bonusText"></div>
+      <div class="strong">Choose a boon for this run</div>
+      <div class="boons" id="boonOffer"></div>
+      <div class="clear-foot">
+        <span class="muted small">Next target <span class="num" id="nextTarget" style="color: var(--ink)"></span></span>
+        <button type="button" class="ghost small-btn" id="reroll"></button>
+      </div>
     </div>
     <div class="overlay dim" id="endingOverlay" hidden>
       <div class="ending">Out of moves</div>
@@ -119,9 +126,13 @@
 
   <div class="preview" id="preview" aria-live="polite"></div>
 
+  <p class="run-boons" id="runBoons"></p>
+
   <div class="legend">
     <div><span class="chip nova"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L14.6 9.4L22 12L14.6 14.6L12 22L9.4 14.6L2 12L9.4 9.4Z"/></svg></span><span><b>Nova</b> · <span id="novaAt">6</span>+ tiles. Clears 3×3.</span></div>
-    <div><span class="chip prism"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18ZM12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8Z"/></svg></span><span><b>Prism</b> · 11+ tiles. Clears a colour.</span></div>
+    <div><span class="chip prism"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18ZM12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8Z"/></svg></span><span><b>Prism</b> · <span id="prismAt">11</span>+ tiles. Clears a colour.</span></div>
+    <div><span class="chip ash"></span><span><b>Ash</b> · crumbles when a neighbour clears.</span></div>
+    <div><span class="chip spark-chip"></span><span><b>Spark</b> · +1 move, up to 5 a level.</span></div>
   </div>
 </section>
 
@@ -143,6 +154,20 @@
   <button type="button" class="btn push-down" data-start="endless">Start a run</button>
 </section>
 
+<section class="screen" id="feats" hidden>
+  <div class="topline">
+    <button type="button" class="icon" data-go="home" aria-label="Back">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6l6 6"/></svg>
+    </button>
+    <span class="num muted" id="featTotal"></span>
+  </div>
+  <header>
+    <h2>Feats</h2>
+    <p class="muted">One-off goals. Each pays Embers the first time, in any mode.</p>
+  </header>
+  <div class="feats" id="featList"></div>
+</section>
+
 <section class="screen" id="over" hidden>
   <div class="eyebrow" id="overLabel"></div>
   <div>
@@ -154,7 +179,7 @@
     <div class="tile4"><div class="muted small">Level reached</div><div class="num" id="resLevel"></div></div>
     <div class="tile4"><div class="muted small">Biggest clear</div><div class="num" id="resGroup"></div></div>
     <div class="tile4"><div class="muted small">Peak multiplier</div><div class="num" id="resMult"></div></div>
-    <div class="tile4"><div class="muted small">Embers earned</div><div class="num amber" id="resEmbers"></div></div>
+    <div class="tile4"><div class="muted small">Embers earned</div><div class="num amber" id="resEmbers"></div><div class="muted small" id="resEmbersNote"></div></div>
   </div>
   <p class="muted" id="resNudge"></p>
   <div class="actions push-down">

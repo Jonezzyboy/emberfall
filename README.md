@@ -9,26 +9,44 @@ Clear the board. Chase the chain. Come back tomorrow. Part of [The Daily Shelf](
 - **Tap a group** of two or more matching tiles to clear it. A group of *n*
   scores `n × (n + 1) × 5`, times your multiplier — big groups pay far more.
   Hover (or focus) a tile to preview the payout first.
-- **Streaks:** every clear of 4+ adds +0.5× to the multiplier; a smaller clear
-  resets it.
+- **Streaks:** each clear of 4+ adds +0.25× to the multiplier, up to 8 steps;
+  a smaller clear resets it, and so does a new level.
 - **Specials:** 6+ tiles forge a **Nova** (clears 3×3), 11+ forge a **Prism**
-  (clears every tile of its colour). Specials caught in a blast fire too, so
-  one tap can cascade.
-- **Levels:** hit a rising target within 16 moves. Leftover moves pay 30 each.
-  Run out and the run ends. A fifth colour arrives at level 3.
+  (clears every tile of its colour). Specials caught in a blast fire too.
+  Blasts pay 40 a tile.
+- **Ash** arrives at level 4: dead tiles that crumble when a neighbour clears.
+- **Sparks** are marked tiles worth +1 move each, up to 5 a level.
+- **Levels:** hit a target that grows ×1.5 a level, in 16 moves. Leftover
+  moves pay 30 each. A fifth colour arrives at level 3.
+
+## Boons
+
+Clearing a level offers three boons, kept for the rest of the run: more moves,
+stronger streaks, cheaper or bigger Novas, easier Prisms, more Sparks, no
+more Ash, one fewer colour, and so on. Each boon has its own stack limit.
 
 ## Modes
 
-- **Daily board** — seeded from the local date, so everyone gets the same
-  first board. Upgrades are off. Tracks a day streak and copies a share line.
-- **Endless run** — a random board with your Forge upgrades applied.
+- **Daily board** — the board and every boon offer are seeded from the local
+  date, so everyone plays the same run. Forge upgrades are off. The first daily
+  each day pays double Embers. Tracks a day streak and copies a share line.
+- **Endless run** — random boards with your Forge upgrades applied.
 
-## The Forge
+## Embers, the Forge and Feats
 
-Every run pays Embers (`score / 40 + 5 per level cleared`), win or lose. Spend
-them on four permanent upgrades: extra moves, base multiplier, cheaper Novas,
-and a free Nova at each level start. The hearth on the home screen pays up to
-20 Embers a day, one tap at a time.
+A run pays `1 + ⌊c(c + 3) / 4⌋` Embers for `c` levels cleared. Score doesn't
+count: it grows exponentially with level and would flood the Forge. Embers buy
+permanent upgrades in the Forge (costs double with each level), and one-off
+Feats pay a little extra. The hearth pays 5 a day.
+
+Balance was tuned with a greedy simulated player (always takes the biggest
+payout, picks boons at random) over a few hundred runs per tier:
+
+| Forge        | median level | Embers / run |
+| ------------ | ------------ | ------------ |
+| none         | 8            | ~18          |
+| half-bought  | 11           | ~33          |
+| maxed (3560) | 13           | ~46          |
 
 Progress is saved to `localStorage` in the browser only.
 
@@ -39,5 +57,6 @@ npm start   # serve on :8000
 npm test    # engine tests (node, no deps)
 ```
 
-`engine.js` holds the pure rules (board, flood fill, chains, gravity, scoring)
-and is shared by the page and the tests; `game.js` is the UI.
+`engine.js` holds the pure rules (board, flood fill, chains, ash, gravity,
+scoring, boons, economy) and is shared by the page and the tests; `game.js` is
+the UI.

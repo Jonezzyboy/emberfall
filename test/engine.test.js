@@ -1,36 +1,36 @@
 const assert = require('node:assert/strict');
 const E = require('../engine.js');
 
-const N = (c) => ({ c, t: 'n', k: Math.random() });
-
+let k = 0;
 function grid(rows) {
   return rows.join('').split('').map((ch) => {
-    if (ch === '*') return { c: 0, t: 'nova', k: Math.random() };
-    if (ch === 'P') return { c: 1, t: 'prism', k: Math.random() };
-    return N(Number(ch));
+    k++;
+    if (ch === '*') return { c: 0, t: 'nova', k };
+    if (ch === 'P') return { c: 1, t: 'prism', k };
+    if (ch === '#') return { c: -1, t: 'ash', k };
+    if (ch === 's') return { c: 2, t: 'n', s: true, k };
+    return { c: Number(ch), t: 'n', k };
   });
 }
 
 // Checkerboard of 0/1 with no adjacent matches anywhere.
 const CHECKER = Array.from({ length: E.H }, (_, y) => Array.from({ length: E.W }, (_, x) => String((x + y) % 2)).join(''));
+const R1 = E.rules(E.noUpgrades(), E.noBoons(), 1);
+const fixed = (v) => () => v;
 
 {
   const b = grid(CHECKER);
   assert.equal(E.hasMove(b), false, 'checkerboard has no moves');
-  assert.equal(E.tap(b, 0, { streak: 0, up: E.noUpgrades(), rand: Math.random, colors: 4 }), null, 'lone tile does nothing');
+  assert.equal(E.tap(b, 0, 0, R1, Math.random), null, 'lone tile does nothing');
 }
 
 {
   const rows = CHECKER.slice();
   rows[0] = '2222' + rows[0].slice(4);
-  const b = grid(rows);
-  const hit = E.computeHit(b, 1);
-  assert.equal(hit.set.size, 4, 'flood fill finds the row group');
-  const r = E.tap(b, 1, { streak: 0, up: E.noUpgrades(), rand: () => 0.99, colors: 4 });
+  const r = E.tap(grid(rows), 1, 0, R1, fixed(0.99));
   assert.equal(r.n, 4);
   assert.equal(r.streak, 1, '4+ builds the streak');
-  assert.equal(r.pts, E.points(4, 1.5));
-  assert.equal(r.board.length, E.W * E.H);
+  assert.equal(r.pts, E.points(4, R1.baseMult + R1.streakStep, R1, false));
   assert.ok(r.board.every(Boolean), 'gravity refills every hole');
   assert.equal(r.fresh.size, 4, 'four new tiles fall in');
 }
@@ -38,15 +38,18 @@ const CHECKER = Array.from({ length: E.H }, (_, y) => Array.from({ length: E.W }
 {
   const rows = CHECKER.slice();
   rows[0] = '222222' + rows[0].slice(6);
-  const r = E.tap(grid(rows), 0, { streak: 0, up: E.noUpgrades(), rand: () => 0.5, colors: 4 });
+  const r = E.tap(grid(rows), 0, 0, R1, fixed(0.5));
   assert.equal(r.spawn, 'nova', '6 forges a Nova');
-  assert.equal(r.board[0].t === 'nova' || r.board.some((c) => c.t === 'nova'), true);
 }
 
 {
-  const up = Object.assign(E.noUpgrades(), { nova: 2 });
-  assert.equal(E.novaAt(up), 4);
-  assert.equal(E.novaAt(Object.assign(E.noUpgrades(), { nova: 9 })), 4, 'nova threshold floors at 4');
+  const rows = CHECKER.slice();
+  rows[0] = '22#' + rows[0].slice(3);
+  const hit = E.computeHit(grid(rows), 0, R1);
+  assert.equal(hit.n, 2);
+  assert.equal(hit.ash, 1, 'ash next to a clear crumbles');
+  const ashOnly = E.computeHit(grid(rows), 2, R1);
+  assert.equal(ashOnly.set.size, 0, 'ash cannot be tapped');
 }
 
 {
@@ -54,23 +57,72 @@ const CHECKER = Array.from({ length: E.H }, (_, y) => Array.from({ length: E.W }
   const rows = CHECKER.slice();
   rows[3] = '0*P' + rows[3].slice(3);
   const b = grid(rows);
-  const hit = E.computeHit(b, 3 * E.W + 1);
-  const colourOnes = b.filter((c) => c.t === 'n' && c.c === 1).length;
+  const hit = E.computeHit(b, 3 * E.W + 1, R1);
+  const ones = b.filter((c) => c.t === 'n' && c.c === 1).length;
   assert.ok(hit.special);
-  assert.ok(hit.set.size >= colourOnes + 2, 'chain reaction includes the Prism colour sweep');
+  assert.equal(hit.specials, 2);
+  assert.ok(hit.n >= ones + 2, 'chain reaction includes the Prism colour sweep');
+  assert.equal(E.preview(b, 3 * E.W + 1, 0, R1).pts, Math.round(hit.n * 40 * (R1.baseMult + R1.streakStep)), 'blasts pay per tile');
 }
 
 {
-  const a = E.mulberry(E.hash('emberfall:2026-10-08'));
-  const b = E.mulberry(E.hash('emberfall:2026-10-08'));
-  const ba = E.levelBoard(a, 1, E.noUpgrades()).map((c) => c.c).join('');
-  const bb = E.levelBoard(b, 1, E.noUpgrades()).map((c) => c.c).join('');
-  assert.equal(ba, bb, 'daily board is deterministic per date');
-  assert.ok(E.hasMove(E.levelBoard(E.mulberry(1), 1, E.noUpgrades())), 'fresh boards are playable');
+  const wild = E.rules(E.noUpgrades(), Object.assign(E.noBoons(), { wildfire: 1 }), 1);
+  const rows = CHECKER.slice();
+  rows[4] = '000*' + rows[4].slice(4);
+  assert.equal(E.computeHit(grid(rows), 4 * E.W + 3, wild).n, 25, 'Wildfire blasts 5×5');
 }
 
-assert.deepEqual([1, 2, 3, 4].map(E.target), [400, 550, 800, 1100]);
-assert.equal(E.colorsFor(2), 4);
-assert.equal(E.colorsFor(3), 5);
+{
+  const rows = CHECKER.slice();
+  rows[0] = 'ss' + rows[0].slice(2);
+  assert.equal(E.computeHit(grid(rows), 0, R1).sparks, 2);
+}
+
+{
+  let streak = 0;
+  for (let i = 0; i < 20; i++) {
+    const rows = CHECKER.slice();
+    rows[0] = '2222' + rows[0].slice(4);
+    streak = E.tap(grid(rows), 0, streak, R1, fixed(0.99)).streak;
+  }
+  assert.equal(streak, E.STREAK_CAP, 'streak caps');
+  const patient = E.rules(E.noUpgrades(), Object.assign(E.noBoons(), { patience: 1 }), 1);
+  const rows = CHECKER.slice();
+  rows[0] = '22' + rows[0].slice(2);
+  assert.equal(E.tap(grid(rows), 0, 3, patient, fixed(0.99)).streak, 3, 'Patience keeps the streak on small clears');
+  assert.equal(E.tap(grid(rows), 0, 3, R1, fixed(0.99)).streak, 0);
+}
+
+{
+  const r4 = E.rules(E.noUpgrades(), E.noBoons(), 4);
+  assert.ok(r4.ashChance > 0 && r4.startAsh > 0, 'ash arrives at level 4');
+  const warded = E.rules(E.noUpgrades(), Object.assign(E.noBoons(), { ashward: 1 }), 6);
+  assert.equal(warded.ashChance, 0);
+  assert.equal(E.rules(E.noUpgrades(), Object.assign(E.noBoons(), { narrow: 1 }), 3).colors, 4);
+  assert.equal(E.rules(Object.assign(E.noUpgrades(), { nova: 2 }), Object.assign(E.noBoons(), { fuse: 2 }), 1).novaAt, 4, 'nova threshold floors at 4');
+}
+
+{
+  const offer = E.boonOffer(E.mulberry(1), E.noBoons(), 2, 3);
+  assert.equal(offer.length, 3);
+  assert.equal(new Set(offer.map((b) => b.id)).size, 3, 'offers are distinct');
+  assert.ok(offer.every((b) => !b.from || b.from <= 2), 'level-gated boons stay out early');
+  const maxed = Object.fromEntries(E.BOONS.map((b) => [b.id, b.max]));
+  assert.equal(E.boonOffer(Math.random, maxed, 9, 3).length, 0);
+}
+
+{
+  const day = 'emberfall:2026-10-08';
+  const a = E.levelBoard(E.mulberry(E.hash(day)), R1).map((c) => c.c).join('');
+  const b = E.levelBoard(E.mulberry(E.hash(day)), R1).map((c) => c.c).join('');
+  assert.equal(a, b, 'daily board is deterministic per date');
+  for (let s = 1; s < 30; s++) {
+    assert.ok(E.hasMove(E.levelBoard(E.mulberry(s), E.rules(E.noUpgrades(), E.noBoons(), 8))), 'fresh boards are playable');
+  }
+}
+
+assert.deepEqual([1, 2, 3].map(E.target), [600, 900, 1350]);
+assert.deepEqual([1, 2, 5, 9].map(E.runEmbers), [1, 2, 8, 23]);
+assert.equal(E.upgradeCost(E.UPGRADES[0], 2), 80);
 
 console.log('engine: ok');

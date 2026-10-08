@@ -2,16 +2,42 @@
   const W = 7;
   const H = 8;
 
+  // Permanent, bought in the Forge with Embers. Endless runs only.
   const UPGRADES = [
-    { id: 'moves', name: 'Deep Breath', desc: '+2 moves every level', max: 5, base: 30 },
-    { id: 'mult', name: 'Kindling', desc: '+0.25× base multiplier', max: 5, base: 45 },
-    { id: 'nova', name: 'Short Fuse', desc: 'Novas forge from 1 fewer tile', max: 3, base: 60 },
-    { id: 'luck', name: 'Ember Luck', desc: 'Each level starts with a free Nova', max: 3, base: 80 },
+    { id: 'moves', name: 'Deep Breath', desc: '+1 move every level', max: 5, base: 20 },
+    { id: 'mult', name: 'Kindling', desc: '+0.1× base multiplier', max: 5, base: 40 },
+    { id: 'spark', name: 'Spark Sense', desc: 'Spark tiles appear more often', max: 3, base: 60 },
+    { id: 'reroll', name: 'Second Look', desc: 'Reroll the boon offer once per run', max: 2, base: 90 },
+    { id: 'nova', name: 'Hair Trigger', desc: 'Novas forge from 1 fewer tile', max: 2, base: 120 },
+    { id: 'luck', name: 'Ember Luck', desc: 'Each level starts with a free Nova', max: 2, base: 150 },
+    { id: 'choice', name: 'Wider Hearth', desc: 'Boon offers show 4 choices', max: 1, base: 200 },
   ];
+
+  // Run-only, one chosen after each cleared level. Both modes.
+  const BOONS = [
+    { id: 'bellows', name: 'Bellows', desc: '+2 moves every level', max: 3 },
+    { id: 'hot', name: 'Hot Streak', desc: 'Each streak step adds +0.25× more', max: 3 },
+    { id: 'big', name: 'Big Game', desc: 'Clears of 8+ tiles score ×1.5', max: 2 },
+    { id: 'fuse', name: 'Short Fuse', desc: 'Novas forge from 1 fewer tile', max: 2 },
+    { id: 'wildfire', name: 'Wildfire', desc: 'Novas blast 5×5 instead of 3×3', max: 1 },
+    { id: 'prism', name: 'Prismatic', desc: 'Prisms forge from 2 fewer tiles', max: 2 },
+    { id: 'patience', name: 'Patience', desc: 'Clears of 2–3 no longer break your streak', max: 1 },
+    { id: 'spark', name: 'Spark Rain', desc: 'Many more Spark tiles', max: 2 },
+    { id: 'thrift', name: 'Thrift', desc: 'Leftover moves pay double', max: 2 },
+    { id: 'ashward', name: 'Ashward', desc: 'No more Ash falls this run', max: 1, from: 3 },
+    { id: 'narrow', name: 'Narrow Palette', desc: 'One fewer colour for the rest of the run', max: 1, from: 3 },
+  ];
+
+  const ASH_FROM = 4;
+  const STREAK_CAP = 8;
+  // Uncapped, big clears under Spark Rain refund more moves than they spend and a level never ends.
+  const SPARK_CAP = 5;
+  const BASE_MOVES = 16;
 
   let uid = 0;
 
-  function noUpgrades() { return { moves: 0, nova: 0, mult: 0, luck: 0 }; }
+  function noUpgrades() { return Object.fromEntries(UPGRADES.map((u) => [u.id, 0])); }
+  function noBoons() { return Object.fromEntries(BOONS.map((b) => [b.id, 0])); }
 
   function hash(str) {
     let h = 2166136261;
@@ -28,20 +54,54 @@
     };
   }
 
-  function target(level) { return Math.round(400 * Math.pow(1.4, level - 1) / 50) * 50; }
-  function mult(streak, up) { return 1 + up.mult * 0.25 + streak * 0.5; }
-  function novaAt(up) { return Math.max(4, 6 - up.nova); }
-  function upgradeCost(u, lvl) { return u.base * Math.pow(2, lvl); }
-  function colorsFor(level) { return level <= 2 ? 4 : 5; }
-  function points(n, m) { return Math.round(n * (n + 1) * 5 * m); }
-  function runEmbers(score, level) { return Math.floor(score / 40) + (level - 1) * 5; }
+  function rules(up, boons, level) {
+    return {
+      level,
+      colors: Math.max(3, (level <= 2 ? 4 : 5) - boons.narrow),
+      moves: BASE_MOVES + up.moves + boons.bellows * 2,
+      baseMult: 1 + up.mult * 0.1,
+      streakStep: 0.25 + boons.hot * 0.25,
+      novaAt: Math.max(4, 6 - up.nova - boons.fuse),
+      prismAt: Math.max(7, 11 - boons.prism * 2),
+      novaRadius: 1 + boons.wildfire,
+      bigGame: Math.pow(1.5, boons.big),
+      patience: boons.patience > 0,
+      sparkChance: 0.02 + up.spark * 0.015 + boons.spark * 0.04,
+      ashChance: level >= ASH_FROM && !boons.ashward ? Math.min(0.1, 0.02 * (level - ASH_FROM + 1)) : 0,
+      startAsh: level >= ASH_FROM ? Math.min(14, 3 * (level - ASH_FROM + 1)) : 0,
+      startNovas: up.luck,
+      leftover: 30 * (1 + boons.thrift),
+    };
+  }
 
-  function cell(rand, colors) { return { c: Math.floor(rand() * colors), t: 'n', k: ++uid }; }
+  function target(level) { return Math.round(600 * Math.pow(1.5, level - 1) / 50) * 50; }
+  function mult(streak, r) { return r.baseMult + streak * r.streakStep; }
+  function upgradeCost(u, lvl) { return Math.round(u.base * Math.pow(2, lvl) / 5) * 5; }
+
+  // Paid on levels cleared, not score: score grows exponentially with level and would flood the Forge.
+  function runEmbers(level) {
+    const cleared = level - 1;
+    return 1 + Math.floor(cleared * (cleared + 3) / 4);
+  }
+
+  // Blasts pay per tile: on the matched-group curve a chained 5×5 Nova would dwarf every target.
+  function points(n, m, r, special) {
+    if (special) return Math.round(n * 40 * m);
+    return Math.round(n * (n + 1) * 5 * m * (n >= 8 ? r.bigGame : 1));
+  }
+
+  function cell(rand, r) {
+    if (r.ashChance && rand() < r.ashChance) return { c: -1, t: 'ash', k: ++uid };
+    const c = { c: Math.floor(rand() * r.colors), t: 'n', k: ++uid };
+    if (rand() < r.sparkChance) c.s = true;
+    return c;
+  }
 
   function hasMove(b) {
     for (let i = 0; i < b.length; i++) {
       const c = b[i];
-      if (c.t !== 'n') return true;
+      if (c.t === 'nova' || c.t === 'prism') return true;
+      if (c.t !== 'n') continue;
       const x = i % W;
       if (x < W - 1 && b[i + 1].t === 'n' && b[i + 1].c === c.c) return true;
       if (i + W < b.length && b[i + W].t === 'n' && b[i + W].c === c.c) return true;
@@ -49,29 +109,48 @@
     return false;
   }
 
-  function freshBoard(rand, colors) {
+  function freshBoard(rand, r) {
+    const noAsh = Object.assign({}, r, { ashChance: 0 });
     let b;
     let tries = 0;
     do {
       b = [];
-      for (let i = 0; i < W * H; i++) b.push(cell(rand, colors));
+      for (let i = 0; i < W * H; i++) b.push(cell(rand, noAsh));
     } while (!hasMove(b) && ++tries < 20);
     return b;
   }
 
-  function levelBoard(rand, level, up) {
-    const board = freshBoard(rand, colorsFor(level));
-    for (let n = 0; n < up.luck; n++) {
+  function levelBoard(rand, r) {
+    let board;
+    let tries = 0;
+    do {
+      board = freshBoard(rand, r);
+      for (let n = 0; n < r.startAsh; n++) {
+        const k = Math.floor(rand() * board.length);
+        board[k] = { c: -1, t: 'ash', k: ++uid };
+      }
+    } while (!hasMove(board) && ++tries < 20);
+    for (let n = 0; n < r.startNovas; n++) {
       const k = Math.floor(rand() * board.length);
-      board[k] = { c: board[k].c, t: 'nova', k: ++uid };
+      board[k] = { c: Math.max(0, board[k].c), t: 'nova', k: ++uid };
     }
     return board;
   }
 
-  function computeHit(b, i) {
+  function neighbours(j) {
+    const x = j % W, y = (j / W) | 0, out = [];
+    if (x > 0) out.push(j - 1);
+    if (x < W - 1) out.push(j + 1);
+    if (y > 0) out.push(j - W);
+    if (y < H - 1) out.push(j + W);
+    return out;
+  }
+
+  function computeHit(b, i, r) {
     const set = new Set();
     const c = b[i];
-    if (!c) return { set, special: false };
+    let special = false;
+    if (!c || c.t === 'ash') return { set, special, n: 0, ash: 0, sparks: 0, specials: 0 };
     if (c.t === 'n') {
       const st = [i];
       while (st.length) {
@@ -80,50 +159,65 @@
         const d = b[j];
         if (!d || d.t !== 'n' || d.c !== c.c) continue;
         set.add(j);
-        const x = j % W, y = (j / W) | 0;
-        if (x > 0) st.push(j - 1);
-        if (x < W - 1) st.push(j + 1);
-        if (y > 0) st.push(j - W);
-        if (y < H - 1) st.push(j + W);
+        st.push(...neighbours(j));
       }
-      return { set, special: false };
-    }
-    // A Nova or Prism caught in another's blast fires too.
-    const q = [i];
-    while (q.length) {
-      const k = q.pop();
-      if (set.has(k)) continue;
-      set.add(k);
-      const e = b[k];
-      if (e.t === 'nova') {
-        const kx = k % W, ky = (k / W) | 0;
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-          const nx = kx + dx, ny = ky + dy;
-          if (nx >= 0 && nx < W && ny >= 0 && ny < H) q.push(ny * W + nx);
+      if (set.size < 2) return { set, special, n: set.size, ash: 0, sparks: 0, specials: 0 };
+    } else {
+      special = true;
+      // A Nova or Prism caught in another's blast fires too.
+      const q = [i];
+      while (q.length) {
+        const k = q.pop();
+        if (set.has(k)) continue;
+        set.add(k);
+        const e = b[k];
+        if (e.t === 'nova') {
+          const kx = k % W, ky = (k / W) | 0, rad = r.novaRadius;
+          for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
+            const nx = kx + dx, ny = ky + dy;
+            if (nx >= 0 && nx < W && ny >= 0 && ny < H) q.push(ny * W + nx);
+          }
+        } else if (e.t === 'prism') {
+          b.forEach((o, m) => { if (o.t === 'n' && o.c === e.c) q.push(m); });
         }
-      } else if (e.t === 'prism') {
-        b.forEach((o, m) => { if (o.t === 'n' && o.c === e.c) q.push(m); });
       }
     }
-    return { set, special: true };
+    // Ash crumbles when anything next to it clears.
+    [...set].forEach((j) => {
+      neighbours(j).forEach((m) => { if (b[m].t === 'ash') set.add(m); });
+    });
+    let n = 0, ash = 0, sparks = 0, specials = 0;
+    set.forEach((j) => {
+      const d = b[j];
+      if (d.t === 'ash') ash++;
+      else n++;
+      if (d.s) sparks++;
+      if (d.t === 'nova' || d.t === 'prism') specials++;
+    });
+    return { set, special, n, ash, sparks, specials };
   }
 
-  function preview(b, i, streak, up) {
-    const hit = computeHit(b, i);
-    const n = hit.set.size;
-    const valid = hit.special || n >= 2;
-    const nextStreak = n >= 4 ? streak + 1 : 0;
+  function preview(b, i, streak, r) {
+    const hit = computeHit(b, i, r);
+    const valid = hit.special || hit.n >= 2;
+    let nextStreak;
+    if (hit.n >= 4) nextStreak = Math.min(STREAK_CAP, streak + 1);
+    else nextStreak = r.patience ? streak : 0;
     let spawn = null;
     if (valid && !hit.special) {
-      if (n >= 11) spawn = 'prism';
-      else if (n >= novaAt(up)) spawn = 'nova';
+      if (hit.n >= r.prismAt) spawn = 'prism';
+      else if (hit.n >= r.novaAt) spawn = 'nova';
     }
-    return { hit, n, valid, streak: nextStreak, mult: mult(nextStreak, up), pts: valid ? points(n, mult(nextStreak, up)) : 0, spawn };
+    const m = mult(nextStreak, r);
+    return {
+      hit, n: hit.n, valid, streak: nextStreak, mult: m, spawn,
+      pts: valid ? points(hit.n, m, r, hit.special) + hit.ash * 25 : 0,
+    };
   }
 
   // Returns null when the tap clears nothing.
-  function tap(b, i, opts) {
-    const p = preview(b, i, opts.streak, opts.up);
+  function tap(b, i, streak, r, rand) {
+    const p = preview(b, i, streak, r);
     if (!p.valid) return null;
     const next = b.slice();
     p.hit.set.forEach((j) => { next[j] = null; });
@@ -138,13 +232,23 @@
       for (let y = H - 1, idx = 0; y >= 0; y--, idx++) {
         if (idx < col.length) next[y * W + x] = col[idx];
         else {
-          const nc = cell(opts.rand, opts.colors);
+          const nc = cell(rand, r);
           fresh.add(nc.k);
           next[y * W + x] = nc;
         }
       }
     }
-    return { board: next, fresh, n: p.n, special: p.hit.special, spawn: p.spawn, pts: p.pts, streak: p.streak, mult: p.mult };
+    return {
+      board: next, fresh, n: p.n, ash: p.hit.ash, sparks: p.hit.sparks, specials: p.hit.specials,
+      special: p.hit.special, spawn: p.spawn, pts: p.pts, streak: p.streak, mult: p.mult,
+    };
+  }
+
+  function boonOffer(rand, boons, level, count) {
+    const pool = BOONS.filter((b) => boons[b.id] < b.max && (!b.from || level >= b.from));
+    const out = [];
+    while (out.length < count && pool.length) out.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
+    return out;
   }
 
   function dayKey(offset) {
@@ -154,8 +258,8 @@
   }
 
   const Engine = {
-    W, H, UPGRADES, noUpgrades, hash, mulberry, target, mult, novaAt, upgradeCost, colorsFor, points, runEmbers,
-    hasMove, freshBoard, levelBoard, computeHit, preview, tap, dayKey,
+    W, H, STREAK_CAP, SPARK_CAP, UPGRADES, BOONS, noUpgrades, noBoons, hash, mulberry, rules, target, mult, upgradeCost, runEmbers,
+    points, hasMove, freshBoard, levelBoard, computeHit, preview, tap, boonOffer, dayKey,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
