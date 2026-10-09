@@ -96,6 +96,7 @@
   function show(name) {
     clearTimeout(endTimer);
     for (const id of ['home', 'play', 'shop', 'feats', 'over']) $(id).hidden = id !== name;
+    document.body.classList.toggle('playing', name === 'play');
     if (name === 'home') renderHome();
     if (name === 'shop') renderShop();
     if (name === 'feats') renderFeats();
@@ -445,7 +446,7 @@
 
   function renderOffer() {
     const count = run.up.choice ? 4 : 3;
-    const offer = E.boonOffer(offerRand(), run.boons, run.level + 1, count);
+    const offer = E.boonOffer(offerRand(), run.up, run.boons, run.level + 1, count);
     const box = $('boonOffer');
     box.replaceChildren();
     if (!offer.length) {
