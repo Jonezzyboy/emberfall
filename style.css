@@ -19,7 +19,9 @@
 }
 
 * { box-sizing: border-box; }
-html { color-scheme: dark; }
+html { color-scheme: dark; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* Stops double-tap zoom when tapping buttons or tiles in quick succession. */
+html, body, button { touch-action: manipulation; }
 body {
   margin: 0;
   min-height: 100dvh;
@@ -40,6 +42,8 @@ button { font: inherit; }
   display: flex;
 }
 .screen { flex: 1; display: flex; flex-direction: column; gap: 16px; }
+.playing .app { height: 100dvh; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+#play { min-height: 0; gap: 10px; }
 
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
@@ -143,8 +147,9 @@ h2 { margin: 0 0 6px; font-size: 40px; font-weight: 800; letter-spacing: -0.02em
 .stat { background: var(--surface); border-radius: 12px; padding: 8px 10px; gap: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
 .stat .num { font-size: 17px; }
 
-.board-wrap { position: relative; }
-.board { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; touch-action: manipulation; }
+.board-wrap { position: relative; flex: 1; min-height: 0; container-type: size; display: flex; align-items: center; justify-content: center; }
+/* Largest 7×8 board that fits: 6 column gaps (24px) across, 7 row gaps (28px) down. */
+.board { width: min(100cqw, (100cqh - 28px) * 7 / 8 + 24px); display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 
 .tile {
   appearance: none; border: 0; padding: 0; margin: 0;
@@ -185,7 +190,7 @@ h2 { margin: 0 0 6px; font-size: 40px; font-weight: 800; letter-spacing: -0.02em
 .pop.go { animation: pop 1s ease-out both; }
 
 .overlay {
-  position: absolute; inset: -6px; border-radius: 16px; overflow-y: auto;
+  position: absolute; inset: 0; border-radius: 16px; overflow-y: auto;
   background: rgba(21, 18, 30, .9);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 10px; text-align: center; padding: 16px;
@@ -198,7 +203,7 @@ h2 { margin: 0 0 6px; font-size: 40px; font-weight: 800; letter-spacing: -0.02em
 .preview.on { color: var(--ink); }
 .preview.off { color: var(--faint); }
 
-.legend { margin-top: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; font-size: 12px; line-height: 1.35; color: var(--muted); }
+.legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; font-size: 12px; line-height: 1.35; color: var(--muted); }
 .legend > div { display: flex; gap: 8px; align-items: center; }
 .legend b { color: var(--ink); }
 .chip { flex: none; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
@@ -260,10 +265,16 @@ h2 { margin: 0 0 6px; font-size: 40px; font-weight: 800; letter-spacing: -0.02em
   transform: translateX(-50%);
   background: var(--ink); color: var(--on-amber);
   padding: 10px 16px; border-radius: 12px;
-  font-size: 14px; font-weight: 600; white-space: nowrap;
+  font-size: 14px; font-weight: 600; text-align: center;
+  width: max-content; max-width: calc(100vw - 32px);
   pointer-events: none; animation: toast .2s ease-out both;
 }
 @keyframes toast { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+@media (max-height: 760px) {
+  .legend { display: none; }
+  .playing .big-num { font-size: 32px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .tile.drop, .pop.go, .toast { animation-duration: 1ms; }

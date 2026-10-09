@@ -17,14 +17,14 @@
   const BOONS = [
     { id: 'bellows', name: 'Bellows', desc: '+2 moves every level', max: 3 },
     { id: 'hot', name: 'Hot Streak', desc: 'Each streak step adds +0.25× more', max: 3 },
-    { id: 'big', name: 'Big Game', desc: 'Clears of 8+ tiles score ×1.5', max: 2 },
+    { id: 'big', name: 'Big Game', desc: 'Matching groups of 8+ score ×1.5', max: 2 },
     { id: 'fuse', name: 'Short Fuse', desc: 'Novas forge from 1 fewer tile', max: 2 },
     { id: 'wildfire', name: 'Wildfire', desc: 'Novas blast 5×5 instead of 3×3', max: 1 },
     { id: 'prism', name: 'Prismatic', desc: 'Prisms forge from 2 fewer tiles', max: 2 },
     { id: 'patience', name: 'Patience', desc: 'Clears of 2–3 no longer break your streak', max: 1 },
     { id: 'spark', name: 'Spark Rain', desc: 'Many more Spark tiles', max: 2 },
     { id: 'thrift', name: 'Thrift', desc: 'Leftover moves pay double', max: 2 },
-    { id: 'ashward', name: 'Ashward', desc: 'No more Ash falls this run', max: 1, from: 3 },
+    { id: 'ashward', name: 'Ashward', desc: 'No Ash for the rest of the run', max: 1, from: 3 },
     { id: 'narrow', name: 'Narrow Palette', desc: 'One fewer colour for the rest of the run', max: 1, from: 3 },
   ];
 
@@ -68,7 +68,7 @@
       patience: boons.patience > 0,
       sparkChance: 0.02 + up.spark * 0.015 + boons.spark * 0.04,
       ashChance: level >= ASH_FROM && !boons.ashward ? Math.min(0.1, 0.02 * (level - ASH_FROM + 1)) : 0,
-      startAsh: level >= ASH_FROM ? Math.min(14, 3 * (level - ASH_FROM + 1)) : 0,
+      startAsh: level >= ASH_FROM && !boons.ashward ? Math.min(14, 3 * (level - ASH_FROM + 1)) : 0,
       startNovas: up.luck,
       leftover: 30 * (1 + boons.thrift),
     };
@@ -130,9 +130,11 @@
         board[k] = { c: -1, t: 'ash', k: ++uid };
       }
     } while (!hasMove(board) && ++tries < 20);
-    for (let n = 0; n < r.startNovas; n++) {
+    for (let n = 0; n < r.startNovas;) {
       const k = Math.floor(rand() * board.length);
+      if (board[k].t === 'nova') continue;
       board[k] = { c: Math.max(0, board[k].c), t: 'nova', k: ++uid };
+      n++;
     }
     return board;
   }
@@ -255,8 +257,15 @@
     };
   }
 
-  function boonOffer(rand, boons, level, count) {
-    const pool = BOONS.filter((b) => boons[b.id] < b.max && (!b.from || level >= b.from));
+  // Compared deep into a run so boons that only bite later, like Ashward, still count.
+  function boonHelps(up, boons, id) {
+    const deep = 99;
+    const more = Object.assign({}, boons, { [id]: boons[id] + 1 });
+    return JSON.stringify(rules(up, boons, deep)) !== JSON.stringify(rules(up, more, deep));
+  }
+
+  function boonOffer(rand, up, boons, level, count) {
+    const pool = BOONS.filter((b) => boons[b.id] < b.max && (!b.from || level >= b.from) && boonHelps(up, boons, b.id));
     const out = [];
     while (out.length < count && pool.length) out.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
     return out;

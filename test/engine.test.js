@@ -116,17 +116,23 @@ const fixed = (v) => () => v;
   assert.ok(r4.ashChance > 0 && r4.startAsh > 0, 'ash arrives at level 4');
   const warded = E.rules(E.noUpgrades(), Object.assign(E.noBoons(), { ashward: 1 }), 6);
   assert.equal(warded.ashChance, 0);
+  assert.equal(warded.startAsh, 0, 'Ashward keeps Ash off fresh boards too');
+  assert.ok(E.levelBoard(E.mulberry(7), warded).every((c) => c.t !== 'ash'));
   assert.equal(E.rules(E.noUpgrades(), Object.assign(E.noBoons(), { narrow: 1 }), 3).colors, 4);
   assert.equal(E.rules(Object.assign(E.noUpgrades(), { nova: 2 }), Object.assign(E.noBoons(), { fuse: 2 }), 1).novaAt, 4, 'nova threshold floors at 4');
 }
 
 {
-  const offer = E.boonOffer(E.mulberry(1), E.noBoons(), 2, 3);
+  const offer = E.boonOffer(E.mulberry(1), E.noUpgrades(), E.noBoons(), 2, 3);
   assert.equal(offer.length, 3);
   assert.equal(new Set(offer.map((b) => b.id)).size, 3, 'offers are distinct');
   assert.ok(offer.every((b) => !b.from || b.from <= 2), 'level-gated boons stay out early');
   const maxed = Object.fromEntries(E.BOONS.map((b) => [b.id, b.max]));
-  assert.equal(E.boonOffer(Math.random, maxed, 9, 3).length, 0);
+  assert.equal(E.boonOffer(Math.random, E.noUpgrades(), maxed, 9, 3).length, 0);
+  const triggered = Object.assign(E.noUpgrades(), { nova: 2 });
+  for (let s = 1; s < 50; s++) {
+    assert.ok(E.boonOffer(E.mulberry(s), triggered, E.noBoons(), 5, 4).every((b) => b.id !== 'fuse'), 'Short Fuse is not offered once Novas are at their floor');
+  }
 }
 
 {
@@ -136,6 +142,13 @@ const fixed = (v) => () => v;
   assert.equal(a, b, 'daily board is deterministic per date');
   for (let s = 1; s < 30; s++) {
     assert.ok(E.hasMove(E.levelBoard(E.mulberry(s), E.rules(E.noUpgrades(), E.noBoons(), 8))), 'fresh boards are playable');
+  }
+}
+
+{
+  const lucky = E.rules(Object.assign(E.noUpgrades(), { luck: 2 }), E.noBoons(), 1);
+  for (let s = 1; s < 30; s++) {
+    assert.equal(E.levelBoard(E.mulberry(s), lucky).filter((c) => c.t === 'nova').length, 2, 'every free Nova lands');
   }
 }
 
